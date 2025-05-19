@@ -17,7 +17,7 @@ sys.path.append(str(project_root))
 
 from qdrant_client import QdrantClient, models
 from openai import OpenAI, OpenAIError
-from fild.huracan.utils import get_logger, load_config
+from huracan.utils import get_logger, load_config
 
 # Load environment variables
 load_dotenv()
@@ -51,10 +51,10 @@ def main():
     config = load_config()
     
     # Check if file exists
-    file_path = project_root / "workbooks" / "lead_generation" / "subsample_10.csv"
+    file_path = project_root / "workbooks" / "lead_generation" / "subsample_10000.csv"
     if not file_path.exists():
         # Try alternate path
-        file_path = project_root / "fild" / "workbooks" / "lead_generation" / "subsample_10.csv"
+        file_path = project_root / "fild" / "workbooks" / "lead_generation" / "subsample_10000.csv"
         if not file_path.exists():
             logger.error(f"Sample data file not found: {file_path}")
             print(f"File not found: {file_path}")

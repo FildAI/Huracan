@@ -15,7 +15,6 @@ if __name__ == "__main__":
     # index.add_text_indexes_for_all_columns(force_recreate=True)
     # index.populate_vocab_collection()
 
-    # res = index.find_similar_in_vocab("country", "New York")
     res = index.find_similar_in_vocab("country", "united Kingdm", limit=1)
     res = index.search_by_text("country", res[0])
 

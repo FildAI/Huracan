@@ -13,8 +13,8 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
 
 from qdrant_client import QdrantClient, models
-from fild.huracan import OpenAIEmbedder
-from fild.huracan.utils import get_logger, load_config
+from huracan.embeddings import OpenAIEmbedder
+from huracan.utils import get_logger, load_config
 
 # Load environment variables
 load_dotenv()
