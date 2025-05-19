@@ -1,0 +1,3 @@
+"""
+Huracan examples package.
+"""
