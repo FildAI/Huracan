@@ -6,17 +6,24 @@ project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
 from core.indexes.vocab_bm25 import VocabBM25Index
-from core.qdrant_client import client
+from core.qdrant_client import get_client
 
+
+def populate_first_time():
+    client = get_client()
+    index = VocabBM25Index(client)
+    index.add_text_indexes_for_all_columns(force_recreate=True)
+    index.populate_vocab_collection()
+
+def repopulate_vocab():
+    client = get_client()
+    index = VocabBM25Index(client)
+    index.populate_vocab_collection()
 
 
 if __name__ == "__main__":
-    index = VocabBM25Index(client)
-    # index.add_text_indexes_for_all_columns(force_recreate=True)
-    # index.populate_vocab_collection()
+    repopulate_vocab()
+   
 
-    res = index.find_similar_in_vocab("country", "united Kingdm", limit=1)
-    res = index.search_by_text("country", res[0])
-
-    print(res)
+    
 

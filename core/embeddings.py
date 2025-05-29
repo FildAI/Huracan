@@ -19,6 +19,11 @@ class BaseEmbedder(ABC):
         """Create embedding for the given text."""
         pass
 
+    @abstractmethod
+    def get_embedding_dimensions(self) -> int:
+        """Get the dimensions of the embedding."""
+        pass
+
 class OpenAIEmbedder(BaseEmbedder):    
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
@@ -36,6 +41,21 @@ class OpenAIEmbedder(BaseEmbedder):
         except Exception as e:
             print(f"Error creating OpenAI embedding: {e}")
             return None
+    
+    def get_embedding_dimensions(self) -> int:
+        return 1536
+
+    def create_embeddings_batch(self, texts: list[str], model: str = "text-embedding-3-small", dimensions: Optional[int] = None) -> list[Optional[list[float]]]:
+        try:
+            kwargs = dict(input=texts, model=model)
+            if dimensions is not None:
+                kwargs["dimensions"] = dimensions
+            response = self.client.embeddings.create(**kwargs)
+            # The response order matches the input order
+            return [item.embedding for item in response.data]
+        except Exception as e:
+            print(f"Error creating OpenAI batch embeddings: {e}")
+            return [None] * len(texts)
 
 class SentenceTransformerEmbedder(BaseEmbedder):
     def __init__(self, model_name: str):
@@ -47,6 +67,7 @@ class SentenceTransformerEmbedder(BaseEmbedder):
         except Exception as e:
             print(f"Error creating SentenceTransformer embedding: {e}")
             return None
+
 
 class SentenceTransformerShort(BaseEmbedder):
     """SentenceTransformer embeddings implementation."""
@@ -61,6 +82,9 @@ class SentenceTransformerShort(BaseEmbedder):
         except Exception as e:
             print(f"Error creating SentenceTransformer embedding: {e}")
             return None
+    
+    def get_embedding_dimensions(self) -> int:
+        return 384
 
 class BM25Embedder(BaseEmbedder):
     """BM25 embeddings implementation using rank_bm25."""
