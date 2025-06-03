@@ -11,9 +11,9 @@ from tqdm import tqdm
 class VocabBM25Index:
     
     COLUMNS = [
-        # "name",
+        "name",
         # "description",
-        # "primary_industry",
+        "primary_industry",
         "country",
         "size",
     ]

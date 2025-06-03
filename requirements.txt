@@ -1,2 +1,16 @@
-rank-bm25==0.2.2
-scikit-learn>=1.0.0 
+# Core dependencies
+qdrant-client>=1.7.0
+sentence-transformers>=2.2.0
+openai>=1.0.0
+numpy>=1.24.0
+
+# Optional dependencies for enhanced functionality
+python-dotenv>=1.0.0  # For environment variable management
+pydantic>=2.0.0       # For better data validation (optional)
+
+# Development dependencies (optional)
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+black>=23.0.0
+mypy>=1.0.0
+ruff>=0.1.0 
