@@ -6,36 +6,22 @@ from qdrant_client.models import TokenizerType
 from core.embeddings import SentenceTransformerShort, OpenAIEmbedder
 from utils.hash import hash_uuid
 from tqdm import tqdm
+from core.vector_config import VocabBM25Builder
 
 
 class VocabBM25Index:
     
-    COLUMNS = [
-        "name",
-        # "description",
-        "primary_industry",
-        "country",
-        "size",
-    ]
-    
-    def __init__(self, client: QdrantClient, embedder=None):
+    def __init__(self, client: QdrantClient, vocab_builder: VocabBM25Builder):
         self.client = client
-        self.tokenizer = TokenizerType.MULTILINGUAL
-        self.collection_name = "companies"
-
-        self.embedder = embedder if embedder is not None else SentenceTransformerShort()
-        # self.embedder = OpenAIEmbedder()
-
-    def get_vocab_collection_name(self, column_name: str):
-        return f"vocab_{self.collection_name}_{column_name}"
-
-
-    def set_embedder(self, embedder):
-        self.embedder = embedder
-
+        self.vocab_builder = vocab_builder
+        self.collection_name = vocab_builder.collection_name
+        self.embedder = vocab_builder.embedder
 
     def get_columns(self):
-        return self.COLUMNS
+        return self.vocab_builder.get_columns()
+
+    def get_vocab_collection_name(self, column_name: str):
+        return self.vocab_builder.get_vocab_collection_name(column_name)
 
     def _delete_collection(self, collection_name: str):
         try:
@@ -43,73 +29,56 @@ class VocabBM25Index:
             self.client.delete_collection(collection_name)
         except Exception:
             pass
-        
-    def create_collection(self, collection_name: str, force_recreate: bool = False):
-        if force_recreate:
-            self._delete_collection(collection_name)
-
-        self.client.create_collection(
-            collection_name=collection_name,
-            vectors_config={
-                "dense": models.VectorParams(size=1536, distance=models.Distance.COSINE)
-            },
-        )
-        
-        return collection_name
     
     def create_vocab_indexes(self, force_recreate: bool = False):
-        for col in self.COLUMNS:
+        """Create vocab collections for all configured columns"""
+        for col in self.get_columns():
             if force_recreate:
                 vocab_collection_name = self.get_vocab_collection_name(col)
                 self.create_vocab_collection(vocab_collection_name, force_recreate=force_recreate)
         
     def add_text_indexes_for_all_columns(self, force_recreate: bool = False):
-        print(f"Adding text indexes for all columns: {self.COLUMNS}")
+        print(f"Adding text indexes for all columns: {self.get_columns()}")
         
         if force_recreate:
             self.create_vocab_indexes(force_recreate=force_recreate)
 
-        for col in self.COLUMNS:
+        for col in self.get_columns():
             self.add_text_index(self.collection_name, col)
 
-
     def add_text_index(self, collection_name: str, field_name: str):
+        bm25_config = self.vocab_builder.bm25_config[field_name]
         
         self.client.create_payload_index(
             collection_name=collection_name,
             field_name=field_name,
-            field_schema=models.TextIndexParams(
-                type="text",
-                tokenizer=self.tokenizer,
-                lowercase=True,
-                min_token_len=2,
-                max_token_len=30,
-            )
+            field_schema=bm25_config.to_qdrant_model()
         )
 
-    
     def create_vocab_collection(self, name: str, force_recreate: bool = False):
         if force_recreate:
             self._delete_collection(name)
 
         self.client.create_collection(
             collection_name=name,
-            vectors_config=models.VectorParams(size=self.embedder.get_embedding_dimensions(), distance=models.Distance.COSINE)
+            vectors_config=models.VectorParams(
+                size=self.embedder.get_embedding_dimensions(), 
+                distance=models.Distance.COSINE
+            )
         )
         
         return name
-    
     
     def populate_vocab_collection(self):
         if self.embedder is None:
             raise ValueError("Embedder must be set before populating vocabulary")
             
         # Reset collections for each column
-        for col in self.COLUMNS:
+        for col in self.get_columns():
             vocab_collection_name = self.get_vocab_collection_name(col)
             self.create_vocab_collection(vocab_collection_name, force_recreate=True)
         
-        elements = {col: [] for col in self.COLUMNS}
+        elements = {col: [] for col in self.get_columns()}
         
         BATCH = 10_000  # how many points to retrieve in one iteration
         offset = None  # cursor; None means start from the smallest id
@@ -127,7 +96,7 @@ class VocabBM25Index:
                 
                 # Process each point
                 for item in points:
-                    for col in self.COLUMNS:
+                    for col in self.get_columns():
                         if col in item.payload and item.payload[col] is not None:
                             elements[col].append(item.payload[col])
                 
@@ -138,33 +107,24 @@ class VocabBM25Index:
         
         # Add collected elements to vocabulary collections
         print("Adding elements to vocabulary collections...")
-        for col in tqdm(self.COLUMNS, desc="Processing columns"):
+        for col in tqdm(self.get_columns(), desc="Processing columns"):
             if elements[col]:  # Only process if we have elements
                 elements[col] = list(set(elements[col]))
                 print(f"Adding {len(elements[col])} items to {col} vocabulary")
                 self.add_vocab_items(self.get_vocab_collection_name(col), elements[col])
 
-
-    
-    def add_vocab_items(self, vocab_collection_name: str, text_values: List[str]):        
+    def add_vocab_items(self, vocab_collection_name: str, text_values: List[str]):
+        """Add vocabulary items to a specific vocab collection"""        
         if self.embedder is None:
             raise ValueError("Embedder must be set before adding vocabulary items")
         
         max_batch_size = 1000
 
         for i in tqdm(range(0, len(text_values), max_batch_size), desc=f"Adding items to {vocab_collection_name}", leave=False):
-            new_batch = []
-            for text_value in text_values[i:i+max_batch_size]:
-                # Create embedding for text value
-                vector = self.embedder.create_embedding(str(text_value))
-                
-                new_batch.append(
-                    models.PointStruct(
-                        id=hash_uuid(text_value),
-                        vector=vector,
-                        payload={"value": text_value}
-                    )
-                )
+            batch_text_values = text_values[i:i+max_batch_size]
+            
+            # Use vocab builder to create points
+            new_batch = self.vocab_builder.get_vocab_batch_points(batch_text_values)
             
             if new_batch:
                 self.client.upsert(
@@ -172,46 +132,20 @@ class VocabBM25Index:
                     points=new_batch
                 )
 
-    def add_object(self, payload: Dict[str, Any]):
-        for col in self.COLUMNS:
+    def add_item_to_vocab(self, payload: Dict[str, Any]):
+        for col in self.get_columns():
             if col in payload and payload[col] is not None:
                 vocab_collection_name = self.get_vocab_collection_name(col)
                 self.add_vocab_items(vocab_collection_name, [payload[col]])
     
-    
-    def search_by_text(self, key: str, query_text: str, limit: int = 20):
-        
-
-        zero_vec = models.NamedVector(name="dense", vector=[0.0] * 1536)
-        
-        hits = self.client.search(
-            collection_name=self.collection_name,
-            query_filter=models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key=key,
-                        match=models.MatchText(text=query_text)
-                    )
-                ]
-            ),
-            limit=limit,
-            query_vector=zero_vec,
-            with_payload=True
-        )
-        
-        return hits
-    
-    def find_similar_in_vocab(self, key: str, query_text: str, limit: int = 5):
-    
+    def search_vocab_similarity(self, column: str, query_text: str, limit: int = 5):
         if self.embedder is None:
             raise ValueError("Embedder must be set before finding similar values")
 
-
-        if key not in self.COLUMNS:
-            raise ValueError(f"Key {key} is not in the allowed columns")
+        if column not in self.get_columns():
+            raise ValueError(f"Column '{column}' is not in the allowed columns: {self.get_columns()}")
         
-        vocab_collection_name = self.get_vocab_collection_name(key)
-        
+        vocab_collection_name = self.get_vocab_collection_name(column)
         query_vector = self.embedder.create_embedding(query_text)
 
         hits = self.client.search(
@@ -223,57 +157,40 @@ class VocabBM25Index:
         
         return [hit.payload['value'] for hit in hits]
     
-    def hybrid_search(self, 
-                     collection_name: str,
-                     text_query: Optional[str] = None,
-                     field_filters: Dict[str, str] = None,
-                     vector_text: Optional[str] = None,
-                     limit: int = 20):
-        
-        must_conditions = []
-        should_conditions = []
-        
-
-        if text_query:
-            for col in self.COLUMNS:
-                should_conditions.append(
-                    models.FieldCondition(
-                        key=col,
-                        match=models.MatchText(text=text_query)
-                    )
-                )
-        
-        if field_filters:
-            for field, value in field_filters.items():
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field,
-                        match=models.MatchText(text=value)
-                    )
-                )
-        
-        # Создаем финальный фильтр
-        query_filter = None
-        if must_conditions or should_conditions:
-            query_filter = models.Filter(
-                must=must_conditions if must_conditions else None,
-                should=should_conditions if should_conditions else None,
-            )
-        
-    
-        query_vector = None
-        if self.embedder is not None:
-            if vector_text is not None:
-                query_vector = self.embedder.create_embedding(vector_text)
-            elif text_query:
-                query_vector = self.embedder.create_embedding(text_query)
+    def search_with_filter(self, query_filter: models.Filter, limit: int = 20):
+        zero_vec = models.NamedVector(name="dense", vector=[0.0] * 1536)
         
         hits = self.client.search(
-            collection_name=collection_name,
-            query_vector=query_vector,
+            collection_name=self.collection_name,
             query_filter=query_filter,
             limit=limit,
+            query_vector=zero_vec,
             with_payload=True
         )
         
         return hits
+    
+    def create_must_filter(self, key: str, query_text: str):
+        return models.Filter(
+            must=self.vocab_builder.create_must_filter({key: query_text})
+        )
+    
+    def create_should_filter(self, filters: Dict[str, str]):
+        return models.Filter(
+            should=self.vocab_builder.create_should_filter(filters)
+        )
+    
+    def create_should_filter_single_query(self, query_text: str, columns: list = None):
+        """Create SHOULD filters (OR conditions) for a single query across multiple columns"""
+        if columns is None:
+            columns = self.get_columns()
+        
+        filters = {col: query_text for col in columns}
+        return models.Filter(
+            should=self.vocab_builder.create_should_filter(filters)
+        )
+    
+    def create_combined_filter(self, should_filters: Dict[str, str] = None, must_filters: Dict[str, str] = None):
+        should_filters = should_filters or {}
+        must_filters = must_filters or {}
+        return self.vocab_builder.create_filter(should_filters, must_filters)

@@ -2,7 +2,7 @@ from qdrant_client import models
 from qdrant_client.models import Distance, TokenizerType
 from core.extractors.company import CompanyExtractorFull, CompanyExtractorField, CompanyField
 from core.embeddings import OpenAIEmbedder
-from typing import Dict
+from typing import Dict, List
 from core.utils import hash_uuid
 
 class VectorConfig:
@@ -34,7 +34,70 @@ class BM25Config:
         )
 
 
+class VocabBM25Builder:
+    def __init__(self, bm25_config: Dict[str, BM25Config], collection_name: str, embedder):
+        self.bm25_config = bm25_config
+        self.collection_name = collection_name
+        self.embedder = embedder
+
+    def get_columns(self):
+        return list(self.bm25_config.keys())
+    
+    def get_vocab_collection_name(self, column_name: str):
+        return f"vocab_{self.collection_name}_{column_name}"
+    
+    def get_vocab_point(self, text_value: str):
+        """Create a single vocab point from text value"""
+        vector = self.embedder.create_embedding(str(text_value))
+        return self._turn_vocab_to_point(vector, text_value)
+    
+    def get_vocab_batch_points(self, text_values: List[str]):
+        """Create batch of vocab points from text values"""
+        vectors = self.embedder.create_embeddings_batch([str(value) for value in text_values])
+        points = [self._turn_vocab_to_point(vectors[i], text_values[i]) for i in range(len(text_values))]
+        return points
+    
+    def _turn_vocab_to_point(self, vector: list, text_value: str):
+        """Turn vector and text value into a PointStruct"""
+        return models.PointStruct(
+            id=hash_uuid(text_value),
+            vector=vector,
+            payload={"value": text_value}
+        )
+    
+    def create_filter(self, should_filters: Dict[str, str], must_filters: Dict[str, str]):
+        return models.Filter(
+            should=self.create_should_filter(should_filters),
+            must=self.create_must_filter(must_filters)
+        )
+    
+    def create_must_filter(self, filters: Dict[str, str]):
+        must_conditions = []
+        for key, query_text in filters.items():
+            must_conditions.append(
+                models.FieldCondition(
+                    key=key,
+                    match=models.MatchText(text=query_text)
+                )
+            )
+        return must_conditions
+    
+    def create_should_filter(self, filters: Dict[str, str]):
+        should_conditions = []
+        for key, query_text in filters.items():
+            should_conditions.append(
+                models.FieldCondition(
+                    key=key,
+                    match=models.MatchText(text=query_text)
+                )
+            )
+        return should_conditions
+
+
 company_extractor = CompanyExtractorFull()
+
+
+COMPANIES_COLLECTION_NAME = "companies"
 
 full_extractor = lambda x: company_extractor.extract(x)
 name_extractor = lambda x: x.get("name", "")
@@ -74,7 +137,7 @@ CompanyVectorConfig = {
     "description": VectorConfig(embedding=OpenAIEmbedder(), data_extractor=description_extractor, distance=Distance.COSINE)
 }
 
-CompanyVectorBuilder = VectorBuilder(CompanyVectorConfig)
+CompanyVectorBuilder = VectorBuilder(CompanyVectorConfig, COMPANIES_COLLECTION_NAME)
 
 CompanyBM25Config = {
     "name": BM25Config(data_extractor=name_extractor),
@@ -82,3 +145,10 @@ CompanyBM25Config = {
     "country": BM25Config(data_extractor=country_extractor),
     "size": BM25Config(data_extractor=size_extractor),
 }
+
+# Create vocab builder for companies
+CompanyVocabBM25Builder = VocabBM25Builder(
+    bm25_config=CompanyBM25Config,
+    collection_name=COMPANIES_COLLECTION_NAME,
+    embedder=OpenAIEmbedder()
+)

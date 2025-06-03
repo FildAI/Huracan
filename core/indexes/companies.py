@@ -11,7 +11,7 @@ class CompaniesIndex:
     def __init__(self, client: QdrantClient = None):
         self.client = client or get_client()
         self.vector_builder = CompanyVectorBuilder
-        self.collection_name = "companies"
+        self.collection_name = self.vector_builder.collection_name
         self.full_vectors_config = CompanyVectorConfig
         self.vector_configs = {key: value.to_qdrant_model() for key, value in CompanyVectorConfig.items()}
         self.bm25_config = CompanyBM25Config
