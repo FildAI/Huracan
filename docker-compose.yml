@@ -1,18 +1,6 @@
 version: '3.8'
 
 services:
-  mongodb:
-    image: mongo:6.0
-    container_name: mongodb
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
-
   qdrant:
     image: qdrant/qdrant:latest
     container_name: qdrant
@@ -38,12 +26,8 @@ services:
       QDRANT_URL: "34.28.77.18"
       QDRANT_API_KEY: ${QDRANT_API_KEY}
       QDRANT_UI_API_KEY: ${QDRANT_UI_API_KEY}
-    depends_on:
-      - qdrant
     volumes:
       - model-cache:/app/model_cache
 
 volumes:
-  mongo-data:
-  qdrant-data:
   model-cache:
