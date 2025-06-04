@@ -59,21 +59,13 @@ class OpenAIEmbedder(BaseEmbedder):
                 model=self.model
             )
             return [item.embedding for item in response.data]
+        except Exception as e:
+            print(f"Error creating OpenAI batch embeddings: {e}")
+            return [None] * len(texts)
     
     def get_embedding_dimensions(self) -> int:
         return 1536
 
-    def create_embeddings_batch(self, texts: list[str], model: str = "text-embedding-3-small", dimensions: Optional[int] = None) -> list[Optional[list[float]]]:
-        try:
-            kwargs = dict(input=texts, model=model)
-            if dimensions is not None:
-                kwargs["dimensions"] = dimensions
-            response = self.client.embeddings.create(**kwargs)
-            # The response order matches the input order
-            return [item.embedding for item in response.data]
-        except Exception as e:
-            print(f"Error creating OpenAI batch embeddings: {e}")
-            return [None] * len(texts)
 
 class SentenceTransformerEmbedder(BaseEmbedder):
     def __init__(self, model_name: str):
@@ -107,3 +99,10 @@ class SentenceTransformerShort(BaseEmbedder):
     
     def get_embedding_dimensions(self) -> int:
         return 384
+    
+    def create_embeddings_batch(self, texts: list[str]) -> list[Optional[list[float]]]:
+        try:
+            return self.model.encode(texts).tolist()
+        except Exception as e:
+            print(f"Error creating SentenceTransformer batch embeddings: {e}")
+            return [None] * len(texts)

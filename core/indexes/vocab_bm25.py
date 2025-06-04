@@ -6,14 +6,16 @@ from qdrant_client.models import TokenizerType
 from core.embeddings import SentenceTransformerShort, OpenAIEmbedder
 from utils.hash import hash_uuid
 from tqdm import tqdm
-from core.vector_config import VocabBM25Builder
+from core.vector_config import VocabBM25Builder, CompanyVocabBM25Builder
+from utils.ai import get_filter_params, get_keywords_guess
 
 
 class VocabBM25Index:
     
-    def __init__(self, client: QdrantClient, vocab_builder: VocabBM25Builder):
+    def __init__(self, client: QdrantClient, vocab_builder: VocabBM25Builder = CompanyVocabBM25Builder):
         self.client = client
         self.vocab_builder = vocab_builder
+        self.auto_filter_model = vocab_builder.auto_filter_model
         self.collection_name = vocab_builder.collection_name
         self.embedder = vocab_builder.embedder
 
@@ -170,27 +172,51 @@ class VocabBM25Index:
         
         return hits
     
-    def create_must_filter(self, key: str, query_text: str):
-        return models.Filter(
-            must=self.vocab_builder.create_must_filter({key: query_text})
-        )
-    
-    def create_should_filter(self, filters: Dict[str, str]):
-        return models.Filter(
-            should=self.vocab_builder.create_should_filter(filters)
-        )
-    
-    def create_should_filter_single_query(self, query_text: str, columns: list = None):
-        """Create SHOULD filters (OR conditions) for a single query across multiple columns"""
-        if columns is None:
-            columns = self.get_columns()
+    def create_filter(self, query: str):
+        # Get available columns for context
+        available_columns = self.get_columns()
         
-        filters = {col: query_text for col in columns}
-        return models.Filter(
-            should=self.vocab_builder.create_should_filter(filters)
-        )
+        guessed_columns = get_keywords_guess(query, available_columns, self.auto_filter_model)
+
+        best_columns = {}
+
+        for col in guessed_columns.items:
+            similar_values = []
+            for keyword in col.keywords:
+                values = self.search_vocab_similarity(col.column, keyword, 5)
+                print(f"Based on {keyword} found {values} values")
+                similar_values += values
+            best_columns[col.column] = similar_values
+
+        print("Best columns: ", best_columns)
+
+
+        filter_params = get_filter_params(query, best_columns)
+        print("Filter params: ", filter_params)
+
+        for param in filter_params.items:
+            musts = []
+            shoulds = []
+            for param in filter_params.items:
+                filter_cond = models.FieldCondition(
+                        key=param.key,
+                        match=models.MatchText(text=param.query)
+                    )
+                if param.type == "must":
+                    musts.append(filter_cond)
+                else:
+                    shoulds.append(filter_cond)
+            
+        return musts, shoulds
     
-    def create_combined_filter(self, should_filters: Dict[str, str] = None, must_filters: Dict[str, str] = None):
-        should_filters = should_filters or {}
-        must_filters = must_filters or {}
-        return self.vocab_builder.create_filter(should_filters, must_filters)
+    def search_with_auto_filter(self, query: str, limit: int = 20):
+        auto_filter = self.create_filter(query)
+
+        musts, shoulds = auto_filter
+
+        filter = models.Filter(
+            must=musts,
+            should=shoulds
+        )
+
+        return self.search_with_filter(filter, limit)

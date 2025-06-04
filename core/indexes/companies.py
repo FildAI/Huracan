@@ -4,7 +4,9 @@ from pathlib import Path
 import sys
 from ..qdrant_client import get_client, get_async_client
 from tqdm import tqdm
-from ..vector_config import CompanyVectorConfig, CompanyBM25Config, CompanyVectorBuilder
+from ..vector_config import CompanyVectorConfig, CompanyVectorBuilder
+from qdrant_client.models import Prefetch
+from .vocab_bm25 import VocabBM25Index
 
 class CompaniesIndex:
 
@@ -14,7 +16,6 @@ class CompaniesIndex:
         self.collection_name = self.vector_builder.collection_name
         self.full_vectors_config = CompanyVectorConfig
         self.vector_configs = {key: value.to_qdrant_model() for key, value in CompanyVectorConfig.items()}
-        self.bm25_config = CompanyBM25Config
 
     def create_collection(self, force_recreate: bool = False):
         if force_recreate:
@@ -65,8 +66,41 @@ class CompaniesIndex:
                 self.upsert_batch(points)
 
     def search(self, query: str, limit: int = 10):
-        pass
-    
+        vocab = VocabBM25Index(self.client)
+        vocab_filter = vocab.create_filter(query)
+        filter = models.Filter(
+            must=vocab_filter.musts,
+            should=vocab_filter.shoulds
+        )
+
+        query_vector = self.vector_builder.query_to_vector(query)
+
+        main_vector = {"dense": query_vector.pop("dense")}
+        prefetch_queries = []
+        
+        for key, vector in query_vector.items():                
+                # Create prefetch query for this embedding
+                prefetch_query = Prefetch(
+                    query=vector,
+                    using=key,
+                    limit=2 * limit,
+                    filter=filter
+                )
+                prefetch_queries.append(prefetch_query)
+
+        results = self.client.query_points(
+            collection_name=self.collection_name,
+            prefetch=prefetch_queries,
+            query=main_vector.values()[0],  # Main query vector is required
+            using=main_vector.keys()[0],  # Specify which vector space for main query
+            limit=limit,
+            with_payload=True,
+            with_vectors=False
+        )
+
+        return results
+
+
     async def upsert_batch_async(self, points: list[models.PointStruct]):
         async_client = get_async_client()
         return await async_client.upsert(

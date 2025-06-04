@@ -3,48 +3,9 @@
 from typing import Callable, List, Optional, Dict, Any, Union
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from ..types import Document, CompanyField
+from core.types import Document, CompanyField, CompanyFields
 
-@dataclass
-class CompanyFields:
-    """Standard company field definitions."""
-    REQUIRED_FIELDS = [
-        "name",
-        "description", 
-        "primary_industry",
-        "size",
-        "type",
-        "location",
-        "country",
-        "domain",
-        "linkedin_url"
-    ]
-    
-    ORDERED_FIELDS = [
-        "name",
-        "description",
-        "primary_industry", 
-        "type",
-        "size",
-        "location",
-        "country",
-        "domain",
-        "linkedin_url"
-    ]
 
-    ORDERED_FIELDS_SET = set(ORDERED_FIELDS)
-    
-    FIELD_LABELS = {
-        "name": "Company",
-        "description": "Description", 
-        "primary_industry": "Industry",
-        "type": "Type",
-        "size": "Size",
-        "location": "Location",
-        "country": "Country",
-        "domain": "Website",
-        "linkedin_url": "LinkedIn"
-    }
 
 class CompanyExtractor(ABC):
     """Base class for company text extractors."""

@@ -1,9 +1,9 @@
 from qdrant_client import models
 from qdrant_client.models import Distance, TokenizerType
 from core.extractors.company import CompanyExtractorFull, CompanyExtractorField, CompanyField
-from core.embeddings import OpenAIEmbedder
+from core.embeddings import OpenAIEmbedder, SentenceTransformerShort
 from typing import Dict, List
-from core.utils import hash_uuid
+from utils import hash_uuid
 
 class VectorConfig:
     def __init__(self, embedding, data_extractor, distance = Distance.COSINE):
@@ -35,13 +35,15 @@ class BM25Config:
 
 
 class VocabBM25Builder:
-    def __init__(self, bm25_config: Dict[str, BM25Config], collection_name: str, embedder):
-        self.bm25_config = bm25_config
+    def __init__(self, vocab_config: Dict[str, BM25Config], collection_name: str, embedder, auto_filter_model: str = "gpt-4o-mini"):
+        self.vocab_config = vocab_config
         self.collection_name = collection_name
         self.embedder = embedder
+        self.auto_filter_model = auto_filter_model
 
+        
     def get_columns(self):
-        return list(self.bm25_config.keys())
+        return list(self.vocab_config.keys())
     
     def get_vocab_collection_name(self, column_name: str):
         return f"vocab_{self.collection_name}_{column_name}"
@@ -65,33 +67,6 @@ class VocabBM25Builder:
             payload={"value": text_value}
         )
     
-    def create_filter(self, should_filters: Dict[str, str], must_filters: Dict[str, str]):
-        return models.Filter(
-            should=self.create_should_filter(should_filters),
-            must=self.create_must_filter(must_filters)
-        )
-    
-    def create_must_filter(self, filters: Dict[str, str]):
-        must_conditions = []
-        for key, query_text in filters.items():
-            must_conditions.append(
-                models.FieldCondition(
-                    key=key,
-                    match=models.MatchText(text=query_text)
-                )
-            )
-        return must_conditions
-    
-    def create_should_filter(self, filters: Dict[str, str]):
-        should_conditions = []
-        for key, query_text in filters.items():
-            should_conditions.append(
-                models.FieldCondition(
-                    key=key,
-                    match=models.MatchText(text=query_text)
-                )
-            )
-        return should_conditions
 
 
 company_extractor = CompanyExtractorFull()
@@ -109,8 +84,9 @@ size_extractor = lambda x: x.get("size", "")
 
 
 class VectorBuilder:
-    def __init__(self, vector_config: Dict[str, VectorConfig]):
+    def __init__(self, vector_config: Dict[str, VectorConfig], collection_name: str):
         self.vector_config = vector_config
+        self.collection_name = collection_name
 
     def get_point(self, payload: dict):
         vector = {key: value.embedding.create_embedding(value.data_extractor(payload)) for key, value in self.vector_config.items()}
@@ -129,6 +105,25 @@ class VectorBuilder:
         vectors = {key: value.embedding.create_embeddings_batch([value.data_extractor(payload) for payload in payloads]) for key, value in self.vector_config.items()}
         points = [self._turn_vector_to_point({key: vectors[key][ix] for key in vectors}, payloads[ix]) for ix in range(len(payloads))]
         return points
+    
+    def query_to_vector(self, query: str):
+        # Group configs by their embedder to avoid duplicate computations
+        embedder_to_keys = {}
+        for key, config in self.vector_config.items():
+            embedder = config.embedding
+            if embedder not in embedder_to_keys:
+                embedder_to_keys[embedder] = []
+            embedder_to_keys[embedder].append(key)
+        
+        vectors = {}
+        for embedder, keys in embedder_to_keys.items():
+            # Generate embedding once per unique embedder
+            vector = embedder.create_embedding(query)
+            # Assign to all associated keys
+            for key in keys:
+                vectors[key] = vector
+        return vectors
+
 
 
 CompanyVectorConfig = {
@@ -139,16 +134,18 @@ CompanyVectorConfig = {
 
 CompanyVectorBuilder = VectorBuilder(CompanyVectorConfig, COMPANIES_COLLECTION_NAME)
 
-CompanyBM25Config = {
+VocabBM25Config = {
     "name": BM25Config(data_extractor=name_extractor),
     "primary_industry": BM25Config(data_extractor=primary_industry_extractor),
     "country": BM25Config(data_extractor=country_extractor),
     "size": BM25Config(data_extractor=size_extractor),
 }
 
+
 # Create vocab builder for companies
 CompanyVocabBM25Builder = VocabBM25Builder(
-    bm25_config=CompanyBM25Config,
+    vocab_config=VocabBM25Config,
     collection_name=COMPANIES_COLLECTION_NAME,
-    embedder=OpenAIEmbedder()
+    embedder=SentenceTransformerShort(),
+    auto_filter_model="gpt-4o-mini"
 )
