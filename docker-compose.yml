@@ -5,7 +5,6 @@ services:
     image: mongo:6.0
     container_name: mongodb
     restart: unless-stopped
-    # pull creds from .env (safer than hard-coding)
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
@@ -19,16 +18,32 @@ services:
     container_name: qdrant
     restart: unless-stopped
     ports:
-      - "6333:6333"   # HTTP/REST
-      - "6334:6334"   # gRPC
-    volumes:
-      - qdrant-data:/qdrant/storage
+      - "6333:6333"
+      - "6334:6334"
     environment:
       RUST_LOG: debug
       QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
-      QDRANT__SERVICE__JWT_RBAC: "true"   # optional, enables Role-Based Access Control
+      QDRANT__SERVICE__JWT_RBAC: "true"
       QDRANT__SERVICE__UI_API_KEY: ${QDRANT_UI_API_KEY}
+    volumes:
+      - qdrant-data:/qdrant/storage
+
+  api:
+    build: .
+    container_name: huracan-api
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      QDRANT_URL: "34.28.77.18"
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      QDRANT_UI_API_KEY: ${QDRANT_UI_API_KEY}
+    depends_on:
+      - qdrant
+    volumes:
+      - model-cache:/app/model_cache
 
 volumes:
   mongo-data:
   qdrant-data:
+  model-cache:

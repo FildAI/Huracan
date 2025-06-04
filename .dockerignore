@@ -1,0 +1,128 @@
+.venv
+.git
+__pycache__
+node_modules
+*.log
+*.sqlite3
+.cache
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# CSV files - CRITICAL: Exclude all CSV files
+*.csv
+**/*.csv
+scripts/subsample*.csv
+scripts/**/*.csv
+data/*.csv
+data/**/*.csv
+
+# Other data files
+*.json
+*.parquet
+*.pkl
+*.pickle
+data/
+workbooks/
+*.log
+logs/
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+Dockerfile*
+
+# Documentation
+README*.md
+docs/
+*.md
+
+# Test files
+test_*
+*_test.py
+tests/
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Large model files
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.h5
+*.model
+
+# Temporary files
+tmp/
+temp/
+.tmp
+
+# Additional exclusions for space optimization
+# Exclude experiment scripts and large datasets
+scripts/experiments/
+scripts/workbooks/
+scripts/old/
+*.tar.gz
+*.zip
+*.7z
+
+# Exclude any pre-existing model cache to avoid conflicts
+model_cache/
+.cache/
+transformers_cache/
+
+# Exclude development and debugging files
+debug/
+profiling/
+benchmark/
+*.prof 

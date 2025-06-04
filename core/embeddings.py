@@ -1,13 +1,10 @@
 import os
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict
-import pandas as pd
+from typing import Optional, List
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
 from dotenv import load_dotenv
-from rank_bm25 import BM25Okapi
 import numpy as np
-from sklearn.feature_extraction.text import CountVectorizer
 
 load_dotenv()
 

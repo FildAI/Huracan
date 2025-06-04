@@ -17,7 +17,6 @@ def main():
     query = "AI companies in the US"
     client = get_client()
     vocab_index = VocabBM25Index(client)
-
     results = vocab_index.search_with_auto_filter(query)
     print(results)
 

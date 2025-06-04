@@ -65,19 +65,26 @@ class CompaniesIndex:
             if points:
                 self.upsert_batch(points)
 
-    def search(self, query: str, limit: int = 10):
+    def search(self, query: str, limit: int = 10, verbose: bool = False):
         vocab = VocabBM25Index(self.client)
-        vocab_filter = vocab.create_filter(query)
+        musts, shoulds = vocab.create_filter(query)
+        if verbose:
+            print("Vocab filter: ", musts, shoulds)
         filter = models.Filter(
-            must=vocab_filter.musts,
-            should=vocab_filter.shoulds
+            must=musts,
+            should=shoulds
         )
 
         query_vector = self.vector_builder.query_to_vector(query)
-
-        main_vector = {"dense": query_vector.pop("dense")}
+        if verbose:
+            print("Query vector: ", query_vector)
+        main_vector_name = "dense"
+        main_vector_query = query_vector.pop(main_vector_name)
         prefetch_queries = []
         
+        if verbose:
+            print("Prefetch queries: ", prefetch_queries)
+
         for key, vector in query_vector.items():                
                 # Create prefetch query for this embedding
                 prefetch_query = Prefetch(
@@ -91,8 +98,8 @@ class CompaniesIndex:
         results = self.client.query_points(
             collection_name=self.collection_name,
             prefetch=prefetch_queries,
-            query=main_vector.values()[0],  # Main query vector is required
-            using=main_vector.keys()[0],  # Specify which vector space for main query
+            query=main_vector_query,  # Main query vector is required
+            using=main_vector_name,  # Specify which vector space for main query
             limit=limit,
             with_payload=True,
             with_vectors=False

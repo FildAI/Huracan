@@ -128,8 +128,8 @@ class VectorBuilder:
 
 CompanyVectorConfig = {
     "dense": VectorConfig(embedding=OpenAIEmbedder(), data_extractor=full_extractor, distance=Distance.COSINE),
-    "name": VectorConfig(embedding=OpenAIEmbedder(), data_extractor=name_extractor, distance=Distance.COSINE),
-    "description": VectorConfig(embedding=OpenAIEmbedder(), data_extractor=description_extractor, distance=Distance.COSINE)
+    # "name": VectorConfig(embedding=OpenAIEmbedder(), data_extractor=name_extractor, distance=Distance.COSINE),
+    # "description": VectorConfig(embedding=OpenAIEmbedder(), data_extractor=description_extractor, distance=Distance.COSINE)
 }
 
 CompanyVectorBuilder = VectorBuilder(CompanyVectorConfig, COMPANIES_COLLECTION_NAME)

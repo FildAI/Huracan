@@ -1,16 +1,19 @@
-# Core dependencies
-qdrant-client>=1.7.0
-sentence-transformers>=2.2.0
-openai>=1.0.0
-numpy>=1.24.0
+# Core
+numpy==1.26.4
+pandas==2.2.3
+qdrant-client==1.14.2
+openai==1.84.0
 
-# Optional dependencies for enhanced functionality
-python-dotenv>=1.0.0  # For environment variable management
-pydantic>=2.0.0       # For better data validation (optional)
+# Web
+fastapi==0.115.12
+uvicorn==0.34.3
+python-dotenv==1.1.0
+pydantic==2.11.5
+requests==2.32.3
+typing-extensions==4.14.0
 
-# Development dependencies (optional)
-pytest>=7.0.0
-pytest-asyncio>=0.21.0
-black>=23.0.0
-mypy>=1.0.0
-ruff>=0.1.0 
+# ML
+torch==2.2.0
+scikit-learn==1.6.1
+transformers==4.36.0
+sentence-transformers==2.7.0
