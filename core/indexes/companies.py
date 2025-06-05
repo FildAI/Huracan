@@ -95,12 +95,15 @@ class CompaniesIndex:
                 )
                 prefetch_queries.append(prefetch_query)
 
+
+        print("Query filter: ", filter)
         results = self.client.query_points(
             collection_name=self.collection_name,
             prefetch=prefetch_queries,
             query=main_vector_query,  # Main query vector is required
             using=main_vector_name,  # Specify which vector space for main query
             limit=limit,
+            query_filter=filter,
             with_payload=True,
             with_vectors=False
         )

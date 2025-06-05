@@ -4,6 +4,7 @@ services:
   api:
     build: .
     container_name: huracan-api
+    restart: unless-stopped
     ports:
       - "8000:8000"
     env_file: .env
@@ -11,8 +12,10 @@ services:
       QDRANT_URL: "34.28.77.18"
       QDRANT_API_KEY: ${QDRANT_API_KEY}
       QDRANT_UI_API_KEY: ${QDRANT_UI_API_KEY}
+      PYTHONUNBUFFERED: 1
     volumes:
       - model-cache:/app/model_cache
+      - .:/app
 
 volumes:
   model-cache:
