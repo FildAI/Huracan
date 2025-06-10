@@ -17,7 +17,7 @@ class BaseEmbedder(ABC):
         pass
 
     @abstractmethod
-    def create_embeddings_batch(self, texts: list[str], model: str = "text-embedding-3-small", dimensions: Optional[int] = None) -> list[Optional[list[float]]]:
+    def create_embeddings_batch(self, texts: list[str], model: str = None, dimensions: Optional[int] = None) -> list[Optional[list[float]]]:
         """Create embeddings for the given texts."""
         pass
 
@@ -49,16 +49,41 @@ class OpenAIEmbedder(BaseEmbedder):
             print(f"Error creating OpenAI embedding: {e}")
             return None
         
-    def create_embeddings_batch(self, texts: list[str]) -> list[Optional[list[float]]]:
+    def create_embeddings_batch(self, texts: list[str], model: str = None, dimensions: Optional[int] = None) -> list[Optional[list[float]]]:
+        # Use instance model if no model specified
+        model = model or self.model
+        
+        # Filter out empty/None texts and keep track of original indices
+        valid_texts = []
+        text_indices = []
+        
+        for i, text in enumerate(texts):
+            if text and str(text).strip():
+                valid_texts.append(str(text).strip())
+                text_indices.append(i)
+        
+        # If no valid texts, return zeros for all
+        if not valid_texts:
+            return [np.zeros(self.get_embedding_dimensions()).tolist()] * len(texts)
+        
         try:
             response = self.client.embeddings.create(
-                input=texts,
-                model=self.model
+                input=valid_texts,
+                model=model
             )
-            return [item.embedding for item in response.data]
+            
+            # Create result array with proper ordering
+            results = [np.zeros(self.get_embedding_dimensions()).tolist()] * len(texts)
+            for i, embedding in enumerate(response.data):
+                original_index = text_indices[i]
+                results[original_index] = embedding.embedding
+                
+            return results
+            
         except Exception as e:
             print(f"Error creating OpenAI batch embeddings: {e}")
-            return [None] * len(texts)
+            print(f"Input texts sample: {valid_texts[:3] if valid_texts else 'No valid texts'}")
+            return [np.zeros(self.get_embedding_dimensions()).tolist()] * len(texts)
     
     def get_embedding_dimensions(self) -> int:
         return 1536
@@ -71,13 +96,38 @@ class SentenceTransformerEmbedder(BaseEmbedder):
     def create_embedding(self, text: str) -> Optional[List[float]]:
 
         if not text or not text.strip():
-            return np.zeros(self.get_embedding_dimensions())
+            return np.zeros(self.get_embedding_dimensions()).tolist()
 
         try:
             return self.model.encode(text).tolist()
         except Exception as e:
             print(f"Error creating SentenceTransformer embedding: {e}")
-            return None
+            return np.zeros(self.get_embedding_dimensions()).tolist()
+    
+    def create_embeddings_batch(self, texts: list[str], model: str = None, dimensions: Optional[int] = None) -> list[Optional[list[float]]]:
+        # Filter out empty/None texts
+        processed_texts = []
+        for text in texts:
+            if text and str(text).strip():
+                processed_texts.append(str(text).strip())
+            else:
+                processed_texts.append("")  # Use empty string for invalid texts
+        
+        try:
+            embeddings = self.model.encode(processed_texts)
+            results = []
+            for i, embedding in enumerate(embeddings):
+                if processed_texts[i]:  # Valid text
+                    results.append(embedding.tolist())
+                else:  # Empty/invalid text
+                    results.append(np.zeros(self.get_embedding_dimensions()).tolist())
+            return results
+        except Exception as e:
+            print(f"Error creating SentenceTransformer batch embeddings: {e}")
+            return [np.zeros(self.get_embedding_dimensions()).tolist()] * len(texts)
+    
+    def get_embedding_dimensions(self) -> int:
+        return self.model.get_sentence_embedding_dimension()
 
 
 class SentenceTransformerShort(BaseEmbedder):
@@ -88,18 +138,36 @@ class SentenceTransformerShort(BaseEmbedder):
         self.model = SentenceTransformer(model_name)
     
     def create_embedding(self, text: str) -> Optional[List[float]]:
+        if not text or not str(text).strip():
+            return np.zeros(self.get_embedding_dimensions()).tolist()
+            
         try:
-            return self.model.encode(text).tolist()
+            return self.model.encode(str(text).strip()).tolist()
         except Exception as e:
             print(f"Error creating SentenceTransformer embedding: {e}")
-            return None
+            return np.zeros(self.get_embedding_dimensions()).tolist()
     
     def get_embedding_dimensions(self) -> int:
         return 384
     
-    def create_embeddings_batch(self, texts: list[str]) -> list[Optional[list[float]]]:
+    def create_embeddings_batch(self, texts: list[str], model: str = None, dimensions: Optional[int] = None) -> list[Optional[list[float]]]:
+        # Filter out empty/None texts
+        processed_texts = []
+        for text in texts:
+            if text and str(text).strip():
+                processed_texts.append(str(text).strip())
+            else:
+                processed_texts.append("")  # Use empty string for invalid texts
+        
         try:
-            return self.model.encode(texts).tolist()
+            embeddings = self.model.encode(processed_texts)
+            results = []
+            for i, embedding in enumerate(embeddings):
+                if processed_texts[i]:  # Valid text
+                    results.append(embedding.tolist())
+                else:  # Empty/invalid text
+                    results.append(np.zeros(self.get_embedding_dimensions()).tolist())
+            return results
         except Exception as e:
             print(f"Error creating SentenceTransformer batch embeddings: {e}")
-            return [None] * len(texts)
+            return [np.zeros(self.get_embedding_dimensions()).tolist()] * len(texts)

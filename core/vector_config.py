@@ -4,6 +4,7 @@ from core.extractors.company import CompanyExtractorFull, CompanyExtractorField,
 from core.embeddings import OpenAIEmbedder, SentenceTransformerShort
 from typing import Dict, List
 from utils import hash_uuid
+import numpy as np
 
 class VectorConfig:
     def __init__(self, embedding, data_extractor, distance = Distance.COSINE):
@@ -102,8 +103,50 @@ class VectorBuilder:
     
     def get_batch_points(self, payloads: list[dict]):
         # processing embeddings as a batch
-        vectors = {key: value.embedding.create_embeddings_batch([value.data_extractor(payload) for payload in payloads]) for key, value in self.vector_config.items()}
-        points = [self._turn_vector_to_point({key: vectors[key][ix] for key in vectors}, payloads[ix]) for ix in range(len(payloads))]
+        print(f"Processing {len(payloads)} payloads for embeddings...")
+        
+        vectors = {}
+        for key, config in self.vector_config.items():
+            print(f"Creating embeddings for vector '{key}'...")
+            
+            # Extract texts for this vector config
+            texts = [config.data_extractor(payload) for payload in payloads]
+            
+            # Debug: Show sample texts
+            # sample_texts = texts[:5] if texts else []
+            # print(f"Sample texts for '{key}': {sample_texts}: payloads: {payloads[:5]}")
+            
+            # Create embeddings
+            embeddings = config.embedding.create_embeddings_batch(texts)
+            
+            # Validate embeddings
+            if not embeddings or len(embeddings) != len(payloads):
+                print(f"Warning: Got {len(embeddings) if embeddings else 0} embeddings for {len(payloads)} payloads")
+                # Fill with zeros if needed
+                embedding_dim = config.embedding.get_embedding_dimensions()
+                embeddings = [np.zeros(embedding_dim).tolist() for _ in payloads]
+            
+            # Check for None values and replace with zeros
+            for i, embedding in enumerate(embeddings):
+                if embedding is None:
+                    print(f"Warning: None embedding at index {i} for vector '{key}', replacing with zeros")
+                    embeddings[i] = np.zeros(config.embedding.get_embedding_dimensions()).tolist()
+            
+            vectors[key] = embeddings
+        
+        # Create points
+        points = []
+        for ix in range(len(payloads)):
+            try:
+                vector_dict = {key: vectors[key][ix] for key in vectors}
+                point = self._turn_vector_to_point(vector_dict, payloads[ix])
+                points.append(point)
+            except Exception as e:
+                print(f"Error creating point at index {ix}: {e}")
+                print(f"Vector dict keys: {list(vectors.keys())}")
+                print(f"Vector values: {[type(vectors[key][ix]) for key in vectors]}")
+                raise
+        
         return points
     
     def query_to_vector(self, query: str):

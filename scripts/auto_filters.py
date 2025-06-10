@@ -14,7 +14,7 @@ from core.indexes.vocab_bm25 import VocabBM25Index
 
 def main():
 
-    query = "AI companies in the US"
+    query = "Which banks in New York have over 10,000 employees?"
     client = get_client()
     vocab_index = VocabBM25Index(client)
     results = vocab_index.search_with_auto_filter(query)

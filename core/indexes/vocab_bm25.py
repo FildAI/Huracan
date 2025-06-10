@@ -220,3 +220,36 @@ class VocabBM25Index:
         )
 
         return self.search_with_filter(filter, limit)
+
+    def add_vocab_items_bulk(self, payloads: List[Dict[str, Any]]):
+        """
+        Bulk add vocab items from a list of payloads.
+        Collects all unique values for each column and adds them efficiently.
+        
+        Args:
+            payloads: List of payload dictionaries containing data for vocab extraction
+        """
+        if not payloads:
+            print("No payloads provided for bulk vocab addition")
+            return
+        
+        # Collect elements for each column
+        elements = {col: [] for col in self.get_columns()}
+        
+        print(f"Collecting vocab items from {len(payloads)} payloads...")
+        
+        # Process each payload and collect values for each column
+        for payload in payloads:
+            for col in self.get_columns():
+                if col in payload and payload[col] is not None:
+                    elements[col].append(payload[col])
+        
+        # Add collected elements to vocabulary collections
+        print("Bulk adding elements to vocabulary collections...")
+        for col in tqdm(self.get_columns(), desc="Processing columns"):
+            if elements[col]:  # Only process if we have elements
+                # Remove duplicates
+                unique_elements = list(set(elements[col]))
+                print(f"Adding {len(unique_elements)} unique items to {col} vocabulary")
+                vocab_collection_name = self.get_vocab_collection_name(col)
+                self.add_vocab_items(vocab_collection_name, unique_elements)
