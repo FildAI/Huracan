@@ -14,7 +14,7 @@ from core.indexes.companies import CompaniesIndex
 
 def main():
 
-    query = "AI companies in the US"
+    query = "AHAHAHAHAHAHAHAHAH"
     client = get_client()
     companies_index = CompaniesIndex(client)
     results = companies_index.search(query, verbose=True)

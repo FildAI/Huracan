@@ -65,6 +65,28 @@ class CompaniesIndex:
             if points:
                 self.upsert_batch(points)
 
+    def _fallback_search(self, main_vector_query, limit: int = 10, verbose: bool = False):
+        """
+        Fallback search without prefetch and filters when main search returns no results.
+        """
+        if verbose:
+            print("No results found with filters and prefetch. Attempting fallback search without filters and prefetch.")
+        
+        # Perform simpler search without prefetch and filters
+        fallback_results = self.client.query_points(
+            collection_name=self.collection_name,
+            query=main_vector_query,
+            using="dense",
+            limit=limit,
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        if verbose:
+            print(f"Fallback search returned {len(fallback_results.points)} results")
+        
+        return fallback_results
+
     def search(self, query: str, limit: int = 10, verbose: bool = False):
         vocab = VocabBM25Index(self.client)
         musts, shoulds = vocab.create_filter(query)
@@ -107,6 +129,10 @@ class CompaniesIndex:
             with_payload=True,
             with_vectors=False
         )
+
+        # Fallback search if no results found
+        if not results.points:
+            return self._fallback_search(main_vector_query, limit, verbose)
 
         return results
 

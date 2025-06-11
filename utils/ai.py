@@ -72,45 +72,43 @@ def get_keywords_guess(query: str, available_columns: List[str], model: str = "g
 
 def get_filter_params(
     query: str,
-    best_guess_columns: List[str],
+    best_guess_columns: Dict[str, List[str]],
     model: str = "gpt-4o-mini"
 ) -> FilterParams:    
     prompt = f"""
-You are an expert at analyzing search queries to create optimal database filters for company data.
+You are an expert in translating user queries into precise database filters for a company database.
 
-You have available columns and valid values: {str(best_guess_columns)}
-
-Your goal is to create must and should filters using these columns for the given query.
-
-Your final filters should be broad enough, focusing only on adding filters that will help to filter out companies that are not relevant to the query.
-Therefore, don't add filters that are too specific.
+Available columns and their valid example values:
+{best_guess_columns}
 
 Query: "{query}"
 
-Analyze this query and determine the best filtering strategy:
+Your task is to generate optimal MUST and SHOULD filters to accurately and effectively narrow down search results.
 
-1. MUST filters (AND conditions) - Use these for:
-   - Exact requirements that must be met
-   - Location/geographic constraints  
-   - Size requirements
-   - Specific industry requirements when explicitly stated
+**Important rules for filtering:**
+- **Geographic Filters:** 
+  - Only apply country filters if explicitly requested in the query (e.g., "in Germany", "EU companies", "based in France").
+  - If the query specifies a broader region (e.g., "EU"), include relevant countries explicitly and ensure the logic uses a SHOULD filter with all applicable countries listed (not MUST, as a company can't simultaneously be in multiple countries).
+- **Size Filters:** Apply MUST filters if company size is explicitly stated or strongly implied (e.g., "over 10,000 employees", "mid-sized").
+- **Industry Filters:** 
+  - Apply MUST filters if industries are explicitly mentioned as mandatory.
+  - Use SHOULD filters for broader industry categories or when multiple related terms are given.
+- **Name or Description Filters:** 
+  - Use SHOULD filters for partial matches or keywords that companies might include in their name or description.
 
-2. SHOULD filters (OR conditions) - Use these for:
-   - Flexible/alternative matching
-   - When query mentions multiple related terms
-   - Broader categorical matches
-   - Name variations or similar terms
+**Example:**
+- "B2B companies in EU":
+  - SHOULD filter on `country` with EU member countries (Germany, France, Spain, Netherlands, etc.).
+  - No size filter unless explicitly mentioned.
+  - Industry is general ("B2B"), thus typically no specific industry filter unless context strongly indicates one.
 
-Guidelines:
-- If query mentions specific location (country, city, region), add to must_filters
-- If query mentions specific company size, add to must_filters  
-- If query mentions broad industry terms, consider should_filters for flexibility
-- If query mentions company names or partial names, add to should_filters on 'name' field
-- If query is very specific about industry, add to must_filters
-- If query has multiple industry terms, use should_filters
-- Keep reasoning concise but explain your filtering strategy
+Return a concise, logical explanation for your filter choices, clearly differentiating MUST and SHOULD filters based on the rules above.
 
-Return the filtering parameters that would best match the user's intent.
+Provide filtering parameters structured clearly:
+- `must_filters`: conditions that must ALL be satisfied (AND logic).
+- `should_filters`: at least ONE of these conditions should be satisfied (OR logic).
+
+Ensure filters directly reflect the user's intent and accurately address geographical and categorical nuances.
 """
-    
-    return create_structured_output(prompt, FilterParams, model) 
+
+    return create_structured_output(prompt, FilterParams, model)
