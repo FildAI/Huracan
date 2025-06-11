@@ -8,6 +8,7 @@ project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
 from routes.companies import router as companies_router
+from routes.people import router as people_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -29,6 +30,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(companies_router)
+app.include_router(people_router)
 
 # Health check endpoint
 @app.get("/")
