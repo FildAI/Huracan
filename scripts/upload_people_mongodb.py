@@ -53,12 +53,10 @@ class CompanyPeopleDB:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    # parser.add_argument('csv_path', help="Path to CSV file")
-    # args = parser.parse_args()
+    parser.add_argument('csv_path', help="Path to CSV file")
+    args = parser.parse_args()
     
     db = CompanyPeopleDB()
     # db.upload(args.csv_path)
-    res = db.search(["Volato", "Hal Inc.", "Google"])
-
-    print(res)
-    # print(f"Uploaded {Path(args.csv_path).name} to MongoDB") 
+    # db.search(["Volato", "Hal Inc.", "Google"])
+    print(f"Uploaded {Path(args.csv_path).name} to MongoDB") 
