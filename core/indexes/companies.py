@@ -65,6 +65,42 @@ class CompaniesIndex:
             if points:
                 self.upsert_batch(points)
 
+    def _deduplicate_results(self, results, verbose: bool = False):
+        """
+        Remove duplicate results based on company ID or domain in payload.
+        Keeps the first occurrence (highest score) of each unique company.
+        """
+        if not results.points:
+            return results
+        
+        seen_ids = set()
+        unique_points = []
+        
+        for point in results.points:
+            # Try to get deduplication key from id or metadata.domain
+            company_id = point.payload.get('id')
+            if not company_id:
+                metadata = point.payload.get('metadata', {})
+                company_id = metadata.get('domain') if isinstance(metadata, dict) else None
+            
+            # Skip if no valid deduplication key found
+            if not company_id:
+                unique_points.append(point)
+                continue
+            
+            if company_id not in seen_ids:
+                seen_ids.add(company_id)
+                unique_points.append(point)
+        
+        if verbose:
+            original_count = len(results.points)
+            unique_count = len(unique_points)
+            print(f"Deduplication: {original_count} -> {unique_count} results (removed {original_count - unique_count} duplicates)")
+        
+        # Create new results object with deduplicated points
+        results.points = unique_points
+        return results
+
     def _fallback_search(self, main_vector_query, limit: int = 10, verbose: bool = False):
         """
         Fallback search without prefetch and filters when main search returns no results.
@@ -84,6 +120,9 @@ class CompaniesIndex:
         
         if verbose:
             print(f"Fallback search returned {len(fallback_results.points)} results")
+        
+        # Apply deduplication to fallback search results
+        fallback_results = self._deduplicate_results(fallback_results, verbose)
         
         return fallback_results
 
@@ -129,6 +168,9 @@ class CompaniesIndex:
             with_payload=True,
             with_vectors=False
         )
+
+        # Apply deduplication to main search results
+        results = self._deduplicate_results(results, verbose)
 
         # Fallback search if no results found
         if not results.points:
