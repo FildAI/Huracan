@@ -9,7 +9,7 @@ services:
       - "8000:8000"
     env_file: .env
     environment:
-      QDRANT_URL: "34.28.77.18"
+      QDRANT_URL: ${QDRANT_URL}
       QDRANT_API_KEY: ${QDRANT_API_KEY}
       QDRANT_UI_API_KEY: ${QDRANT_UI_API_KEY}
       PYTHONUNBUFFERED: 1
