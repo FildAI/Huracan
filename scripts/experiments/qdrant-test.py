@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-client = QdrantClient(url="http://34.28.77.18:6333", api_key=os.getenv('QDRANT_API_KEY'))   # or Cloud URL / gRPC
+client = QdrantClient(url=os.getenv("QDRANT_URL", "http://localhost:6333"), api_key=os.getenv("QDRANT_API_KEY"))
 
 
 DIM = 384                               # size of your embeddings

@@ -16,7 +16,8 @@ from core.indexes.companies import CompaniesIndex
 import json
 from utils.hash import hash_uuid
 
-csv_path = "/Users/aleksandrmalysev/Yandex.Disk.localized/Developer/Fild/fild/huracan/scripts/subsample100000.csv"
+# CSV with an "embedding" column (see create_embeddings_csv.py); pass a path or keep it next to this script.
+csv_path = sys.argv[1] if len(sys.argv) > 1 else str(Path(__file__).parent / "subsample100000.csv")
 
 def sanitize_metadata(metadata: dict) -> dict:
     clean = {}
